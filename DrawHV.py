@@ -2,10 +2,40 @@ import ezdxf
 from ezdxf.enums import TextEntityAlignment
 import os
 import re
+import glob
 
 
-DEFAULT_BS_DIR = r"D:\MT3\points"   # 默认数据文件夹
-DEFAULT_OUTPUT_DIR = r"D:\MT3\out"  # 默认输出文件夹
+DEFAULT_BS_DIR = r"D:\DeXin\170\jianmo"   # 默认数据文件夹
+DEFAULT_OUTPUT_DIR = r"D:\DeXin\170\out"  # 默认输出文件夹
+
+
+def parse_range(user_input):
+    """将用户输入的范围字符串解析为整数列表，支持 1-10 或 1,3,5 或混合，返回列表或 None"""
+    user_input = user_input.strip()
+    if not user_input:
+        return None
+
+    numbers = []
+    parts = user_input.split(',')
+    for part in parts:
+        part = part.strip()
+        if '-' in part:
+            start, end = part.split('-', 1)
+            try:
+                start = int(start)
+                end = int(end)
+                numbers.extend(range(start, end + 1))
+            except ValueError:
+                print(f"无法解析范围部分: {part}")
+                return None
+        else:
+            try:
+                numbers.append(int(part))
+            except ValueError:
+                print(f"无法解析编号: {part}")
+                return None
+    return sorted(set(numbers))
+
 
 def read_bs_file(filepath, base_dir=DEFAULT_BS_DIR):
     """读取 .bs 文件，返回非空行列表，不存在则返回 None"""
@@ -86,23 +116,40 @@ def add_polylines_to_dxf(doc, polylines, layer_name):
 def main():
     print("请输入要处理的编号，多个编号用空格分隔（例如：1 2 3）：")
     user_input = input(">> ").strip()
+    '''
     if not user_input:
         print("未输入任何编号，退出。")
         return
+        '''
 
-    numbers = re.split(r'[ ,]+', user_input)
-    ids = []
-    for n in numbers:
-        if n.isdigit():
-            ids.append(int(n))
-        else:
-            print(f"忽略无效输入：{n}")
-    if not ids:
-        print("没有有效的编号，退出。")
-        return
+    ids = parse_range(user_input)
+    print(ids)
+    if ids is None:
+        # 直接回车：扫描 vs*.bs 和 hs*.bs 文件，合并提取编号
+        all_ids = set()
+        pattern_vs = os.path.join(DEFAULT_BS_DIR, "vs*.bs") if DEFAULT_BS_DIR else "vs*.bs"
+        pattern_hs = os.path.join(DEFAULT_BS_DIR, "hs*.bs") if DEFAULT_BS_DIR else "hs*.bs"
+        for pattern in (pattern_vs, pattern_hs):
+            for f in glob.glob(pattern):
+                basename = os.path.basename(f)
+                m = re.match(r'(vs|hs)(\d+)\.bs$', basename)
+                if m:
+                    all_ids.add(int(m.group(2)))
+        ids = sorted(all_ids)
+        if not ids:
+            print("未找到任何 vs*.bs 或 hs*.bs 文件，退出。")
+            return
+        print(f"自动匹配到编号：{ids}")
+    else:
+        if not ids:
+            print("没有有效的编号，退出。")
+            return
+        print(f"将处理编号：{ids}")
 
-    print(f"将处理编号：{ids}")
+
     print(f"数据文件基础目录：'{DEFAULT_BS_DIR}'（空则为当前目录）")
+    os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
+    print(f"输出文件基础目录：'{DEFAULT_OUTPUT_DIR}'")
 
     for num in ids:
         vs_file = f"vs{num}.bs"

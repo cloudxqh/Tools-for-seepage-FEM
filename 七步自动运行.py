@@ -14,8 +14,8 @@ import sys
 
 
 DEVENV_CANDIDATES = (
-    Path(r"C:\Program Files (x86)\Microsoft Visual Studio 10.0\Common7\IDE\devenv.com"),
-    Path(r"C:\Program Files\Microsoft Visual Studio 10.0\Common7\IDE\devenv.com"),
+    Path(r"D:\Microsoft Visual Studio 10.0\Common7\IDE\devenv.com"),
+    Path(r"D:\Microsoft Visual Studio 10.0\Common7\IDE\devenv.com"),
 )
 
 
@@ -34,10 +34,10 @@ STEPS = (
     Step(
         1,
         "生成PO",
-        "1-生成poHVBtoPO-2022Liu.vfproj",
-        "CompletesectionsPOtoPC - 副本(1).FOR",
+        "1连面CompletesectionsPOtoPC .vfproj",
+        "CompletesectionsPOtoPC - 副本 - 副本(1).FOR",
         "Debug",
-        "1-生成poHVBtoPO-2022Liu.exe",
+        "1连面CompletesectionsPOtoPC .exe",
         True,
     ),
     Step(
@@ -80,7 +80,7 @@ STEPS = (
         6,
         "连接三维面",
         "6-连三维面ZNET3-F3.vfproj",
-        "ZNET3-F3.FOR",
+        "ZNET3-F3(1).FOR",
         "Release",
         "6-连三维面ZNET3-F3.exe",
         False,
@@ -525,13 +525,22 @@ def run_step(executable: Path, data_folder: Path, step: Step, log: list[str]) ->
     output = decode_output(result.stdout)
     log.append(f"\n===== 运行步骤{step.number}：{step.title} =====\n{output}")
 
-    if step.number == 1 and "9999 END OF PROGRAM" not in output:
+    verification_output = output
+    if step.number == 1:
+        step1_log = data_folder / "VHBtoPO.LOG"
+        if not step1_log.is_file():
+            raise WorkflowError("第1步未生成VHBtoPO.LOG，已停止七步自动运行")
+        step1_log_output = decode_output(step1_log.read_bytes())
+        verification_output += "\n" + step1_log_output
+        log.append(f"\n===== 第1步日志：VHBtoPO.LOG =====\n{step1_log_output}")
+
+    if step.number == 1 and "9999 END OF PROGRAM" not in verification_output:
         print("\n\n===== 第1步程序输出 =====")
-        print(output.rstrip())
+        print(verification_output.rstrip())
         print("===== 第1步程序输出结束 =====")
         raise WorkflowError("第1步未输出9999 END OF PROGRAM，已停止七步自动运行")
 
-    lowered = output.casefold()
+    lowered = verification_output.casefold()
     failure_markers = (
         "forrtl: severe",
         "error in file",

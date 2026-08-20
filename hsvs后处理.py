@@ -162,6 +162,7 @@ def main():
     # 询问是否指定范围
     range_input = input("请输入要处理的编号范围（如 1-20 或 1,3,5，直接回车处理所有匹配文件）：").strip()
     numbers = parse_range(range_input) if range_input else None
+    print(numbers)
 
     # 生成文件列表
     if numbers is not None:
