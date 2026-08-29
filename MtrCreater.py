@@ -1,11 +1,13 @@
 import os
 
-# 文件内容（保持原样，使用 \t 表示制表符）
-CONTENT = """1\t150\t1\t！\t空气\t\t
-300\t150\t1\t！\t空气\t\t
-"""
 
-DEFAULT_OUT_DIR = "output"  # 默认输出文件夹
+DEFAULT_OUT_DIR = r"D:\DeXin\170\111\output"  # 默认输出文件夹
+
+
+# 文件内容（保持原样，使用 \t 表示制表符）
+CONTENT = """1	150	1	！	微风化千枚岩
+300	150	1	！	空气
+"""
 
 
 def parse_range(user_input):

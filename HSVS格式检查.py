@@ -164,6 +164,8 @@ def check_file(path: Path) -> list[Issue]:
         )
 
     index = 1
+    previous_line_number: int | None = None  # 新增：记录上一个线头行的线号
+
     while index < len(lines):
         if not lines[index].strip():
             index += 1
@@ -180,8 +182,20 @@ def check_file(path: Path) -> list[Issue]:
         header_line = index + 1
         line_number = fields[0]
         declared_count: int | None = None
+
+        # 检查线号是否为整数
         if not is_integer(line_number):
             issues.append(Issue("线头格式", header_line, f"线号不是整数：{line_number}"))
+        else:
+            current_line_num = int(line_number)
+            # 检查线号是否递减（新增）
+            if previous_line_number is not None and current_line_num < previous_line_number:
+                issues.append(
+                    Issue("线号顺序", header_line, f"线号递减：{current_line_num} < {previous_line_number}")
+                )
+            previous_line_number = current_line_num
+
+        # 检查点数
         if not is_integer(fields[1]):
             issues.append(Issue("线头格式", header_line, f"点数不是整数：{fields[1]}"))
         else:
