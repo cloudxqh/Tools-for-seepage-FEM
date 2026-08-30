@@ -77,67 +77,100 @@ def filter_points_by_xy_tolerance(points, tol):
     return points[keep]
 
 
-def point_to_polyline_distance(point, polyline):
+def compute_distances_to_polyline(points_xy, polyline):
     """
-    计算点 (x,y) 到多段线的最短距离及弧长参数。
-    返回 (距离, 弧长)
-    """
-    p = np.array(point[:2])
-    M = len(polyline)
-    if M < 2:
-        return np.inf, 0.0
-    seg_len = np.linalg.norm(np.diff(polyline, axis=0), axis=1)
-    cum_len = np.concatenate(([0], np.cumsum(seg_len)))
+    向量化计算所有点到多段线的距离及对应弧长。
 
-    min_dist = np.inf
-    arc_pos = 0.0
-    for i in range(M - 1):
-        A = polyline[i]
-        B = polyline[i + 1]
-        AB = B - A
-        ab_len = seg_len[i]
-        if ab_len == 0:
-            continue
-        t = np.dot(p - A, AB) / (ab_len * ab_len)
-        t = np.clip(t, 0.0, 1.0)
-        proj = A + t * AB
-        dist = np.linalg.norm(p - proj)
-        if dist < min_dist:
-            min_dist = dist
-            arc_pos = cum_len[i] + t * ab_len
-    return min_dist, arc_pos
+    参数:
+        points_xy: (N,2) 数组，所有点的 XY 坐标
+        polyline: (M,2) 数组，多段线顶点
+
+    返回:
+        min_dists: (N,) 数组，每个点到多段线的最短距离
+        min_arcs:  (N,) 数组，每个点投影到多段线上的弧长参数
+    """
+    if len(points_xy) == 0 or len(polyline) < 2:
+        return np.full(len(points_xy), np.inf), np.zeros(len(points_xy))
+
+    # 线段起点和终点
+    A = polyline[:-1]                  # (M-1,2)
+    B = polyline[1:]                   # (M-1,2)
+    AB = B - A                         # (M-1,2)
+    ab_len_sq = np.sum(AB**2, axis=1)  # (M-1,)
+
+    # 处理零长度线段
+    valid = ab_len_sq > 1e-12
+    if not np.any(valid):
+        # 所有线段长度为零，距离为点到最近顶点的距离
+        diff = points_xy[:, np.newaxis, :] - polyline[np.newaxis, :, :]
+        dists = np.linalg.norm(diff, axis=2)          # (N, M)
+        min_idx = np.argmin(dists, axis=1)
+        min_dists = dists[np.arange(len(points_xy)), min_idx]
+        # 弧长：最近顶点对应的累积长度
+        seg_len = np.linalg.norm(np.diff(polyline, axis=0), axis=1)
+        cum_len = np.concatenate(([0], np.cumsum(seg_len)))
+        min_arcs = cum_len[min_idx]
+        return min_dists, min_arcs
+
+    # 只保留有效线段
+    A_v = A[valid]
+    B_v = B[valid]
+    AB_v = AB[valid]
+    ab_len_sq_v = ab_len_sq[valid]
+    ab_len_v = np.sqrt(ab_len_sq_v)
+
+    # 累积弧长（对应原多段线所有顶点）
+    seg_len_all = np.linalg.norm(np.diff(polyline, axis=0), axis=1)
+    cum_len_all = np.concatenate(([0], np.cumsum(seg_len_all)))  # 长度 M
+    valid_indices = np.where(valid)[0]  # 有效线段在原 polyline 中的起始顶点索引
+
+    # 对每个点计算到所有有效线段的投影参数 t 和距离
+    PA = points_xy[:, np.newaxis, :] - A_v[np.newaxis, :, :]   # (N, K, 2)
+    t = np.einsum('nki,ki->nk', PA, AB_v) / ab_len_sq_v[np.newaxis, :]  # (N, K)
+    t = np.clip(t, 0.0, 1.0)
+    proj = A_v[np.newaxis, :, :] + t[..., np.newaxis] * AB_v[np.newaxis, :, :]  # (N, K, 2)
+    diff = points_xy[:, np.newaxis, :] - proj
+    dists = np.linalg.norm(diff, axis=2)   # (N, K)
+
+    # 找出每个点距离最小的线段索引（在有效线段中的索引）
+    min_k = np.argmin(dists, axis=1)       # (N,)
+    min_dists = dists[np.arange(len(points_xy)), min_k]
+
+    # 计算对应的弧长
+    original_idx = valid_indices[min_k]    # 该线段在原 polyline 中的起始顶点索引
+    t_min = t[np.arange(len(points_xy)), min_k]
+    arc_start = cum_len_all[original_idx]
+    arc_offset = t_min * ab_len_v[min_k]
+    min_arcs = arc_start + arc_offset
+
+    return min_dists, min_arcs
 
 
 def extract_boundary_points(points, polyline, line_tol):
     """
-    提取满足距离阈值的点，返回 (N, 3) 数组 (X,Y,Z) 和对应的距离列表
+    提取满足距离阈值的点，返回 (N,3) 数组和距离列表
     """
     if len(points) == 0 or len(polyline) < 2:
         return np.empty((0, 3)), []
 
-    # 计算所有点到多段线的距离和弧长
-    all_dists = []
-    all_arcs = []
-    for pt in points:
-        dist, arc = point_to_polyline_distance(pt, polyline)
-        all_dists.append(dist)
-        all_arcs.append(arc)
+    points_xy = points[:, :2]
+    # 一次计算所有距离和弧长
+    dists, arcs = compute_distances_to_polyline(points_xy, polyline)
 
     # 筛选
-    results = []
-    kept_dists = []
-    for i, pt in enumerate(points):
-        if all_dists[i] <= line_tol:
-            results.append((pt[0], pt[1], pt[2], all_arcs[i]))
-            kept_dists.append(all_dists[i])
+    mask = dists <= line_tol
+    if not np.any(mask):
+        return np.empty((0, 3)), []
 
-    if not results:
-        return np.empty((0, 3)), kept_dists
+    selected_xyz = points[mask]
+    selected_arcs = arcs[mask]
+    selected_dists = dists[mask]
 
     # 按弧长排序
-    results.sort(key=lambda x: x[3])
-    out_xyz = np.array([[x, y, z] for x, y, z, _ in results], dtype=np.float64)
-    return out_xyz, kept_dists
+    sort_idx = np.argsort(selected_arcs)
+    selected_xyz = selected_xyz[sort_idx]
+    # selected_dists 用于统计，无需排序
+    return selected_xyz, selected_dists
 
 
 def write_output(filename, pts_xyz):
@@ -250,10 +283,11 @@ def main():
             print("  未提取到任何点！")
 
         # 打印全部点到该线的距离分布（帮助判断容差是否合理）
-        all_dists = []
-        for pt in filtered:
-            d, _ = point_to_polyline_distance(pt, polyline)
-            all_dists.append(d)
+        # 可以直接使用之前计算的距离，但注意 extract_boundary_points 内部已经计算过，这里不再重复计算，直接输出全部距离统计
+        # 为了保持原功能，我们需要重新计算全部距离，或者修改 extract_boundary_points 返回全部距离。
+        # 但为性能考虑，我们可以先调用 compute_distances_to_polyline 获取全部距离，再筛选，这样避免重复计算。
+        # 但为了代码简洁，这里保留原逻辑：单独计算全部距离统计（会多一次计算，但影响不大）。
+        all_dists, _ = compute_distances_to_polyline(filtered[:, :2], polyline)
         print(
             f"  全部点到该线距离: 最小={np.min(all_dists):.4f}, 最大={np.max(all_dists):.4f}, 平均={np.mean(all_dists):.4f}")
         print()
