@@ -112,70 +112,42 @@ def start_surfer():
     raise Exception("无法连接到 Surfer，请确认 Surfer 已启动")
 
 def export_dxf(srf_path, dxf_path, app, dat_path):
-    """导出 DXF：
-    1. 同时包含 Contour Map 和 XYLIN.Bln
-    2. 使用 Contour Map 的实际 X/Y 坐标作为 DXF 比例尺
-    """
-
     try:
-        # 获取原始数据的实际坐标范围
+        # 获取数据实际坐标范围
         xmin, xmax, ymin, ymax = get_data_range(dat_path)
 
         plot = app.Documents.Open(srf_path)
 
-        # 选中所有对象
-        # Contour Map + XYLIN.Bln
+        # 选中所有对象（等值线 + 边界，无其他）
         plot.Shapes.SelectAll()
-        # 如果旧 DXF 存在，先删除
+
+        # 如果旧 DXF 存在则删除
         if os.path.exists(dxf_path):
             try:
                 os.remove(dxf_path)
-                print(f"已删除旧 DXF：{dxf_path}")
             except PermissionError:
                 raise PermissionError(
-                    f"无法删除旧 DXF：{dxf_path}\n"
-                    f"请关闭正在使用该 DXF 文件的程序后重新运行。"
+                    f"DXF 文件正在被其他程序使用，请先关闭：{dxf_path}"
                 )
-        # DXF 缩放参数
-        #
-        # ScalingSource=1
-        #   使用程序提供的缩放信息
-        #
-        # SaveScalingInfo=1
-        #   保存缩放信息
-        #
-        # FileLLX / FileLLY
-        #   DXF 左下角实际坐标
-        #
-        # FileURX / FileURY
-        #   DXF 右上角实际坐标
-        #
+
+        # 关键选项：明确指定文件矩形为数据范围，并强制使用该缩放
         options = (
-            "ScalingSource=1,"
-            "SaveScalingInfo=1,"
-            f"FileLLX={xmin},"
-            f"FileLLY={ymin},"
-            f"FileURX={xmax},"
-            f"FileURY={ymax}"
+            f"Defaults=1,"               # 重置所有选项为默认
+            f"SaveScalingInfo=1,"        # 保存缩放信息供后续使用
+            f"FileLLX={xmin},"           # 输出文件左下角 X = 数据最小值
+            f"FileLLY={ymin},"           # 输出文件左下角 Y = 数据最小值
+            f"FileURX={xmax},"           # 输出文件右上角 X = 数据最大值
+            f"FileURY={ymax},"           # 输出文件右上角 Y = 数据最大值
+            f"ScalingSource=0"           # 使用之前保存的缩放信息（我们刚指定的）
         )
 
-        # Surfer 15 COM
-        # 不使用 FilterId，不使用关键字参数
-        plot.Export(
-            dxf_path,
-            True,
-            options
-        )
+        plot.Export(dxf_path, True, options)   # True 表示只导出选中对象
 
-        print(
-            f"DXF 导出成功：{dxf_path} "
-            f"(图形坐标范围 X={xmin}~{xmax}, Y={ymin}~{ymax})"
-        )
-
+        print(f"DXF 导出成功：{dxf_path} (坐标范围 X:{xmin}~{xmax}, Y:{ymin}~{ymax})")
         plot.Close()
 
     except Exception as e:
-        print(f"DXF 导出失败 {dxf_path}: {e}")
+        print(f"DXF 导出失败：{e}")
         raise
 
 def main():

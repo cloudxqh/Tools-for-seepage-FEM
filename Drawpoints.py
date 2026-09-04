@@ -6,12 +6,12 @@ from ezdxf.enums import TextEntityAlignment
 # ==================== 默认配置（可修改） ====================
 DEFAULT_INPUT_DIR = r"D:\DeXin\170\111\jisuan\新建文件夹"  # 默认输入目录
 DEFAULT_OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\新建文件夹"  # 默认输出目录
-DEFAULT_INPUT_FILE = "000.txt"  # 默认输入文件名（仅当交互无输入时使用）
+DEFAULT_INPUT_FILE = ""  # 默认输入文件名（仅当交互无输入时使用）
 TEXT_HEIGHT = 2.0  # 文字高度
 LAYER_NAME = "points"  # 点图层名称
 TEXT_MODE = "3D"  # 文本模式："2D" 或 "3D"（启用 Z 坐标）
 DXF_VERSION = "R2010"  # DXF 版本
-
+DEFAULT_EXTENSION = ".txt"  # ==== 新增：默认处理的文件扩展名 ====
 
 # ===========================================================
 
@@ -27,13 +27,11 @@ def get_input_path():
         return os.path.join(DEFAULT_INPUT_DIR, user_input)
     return user_input
 
-
 def get_output_path(input_path):
     """
     交互式获取输出 DXF 文件路径。
     若直接回车，则根据输入文件名自动生成（同目录/输出目录，扩展名为 .dxf）。
     """
-    # 根据输入文件生成默认输出文件名
     base = os.path.basename(input_path)
     name, _ = os.path.splitext(base)
     default_filename = name + ".dxf"
@@ -45,6 +43,13 @@ def get_output_path(input_path):
         return default_full
     return user_input
 
+def get_output_dir():
+    """==== 新增：交互式获取输出目录（用于多文件模式） ===="""
+    prompt = f"请输入输出目录（回车使用默认：{DEFAULT_OUTPUT_DIR}）："
+    user_input = input(prompt).strip()
+    if user_input == "":
+        return DEFAULT_OUTPUT_DIR
+    return user_input
 
 def parse_point_file(filepath):
     """
@@ -76,7 +81,6 @@ def parse_point_file(filepath):
         points.append((idx, x, y, z))
     return points
 
-
 def add_points_to_dxf(doc, points, layer_name, text_height, mode="2D"):
     """
     在 DXF 文档的模型空间中添加点文本标签。
@@ -87,7 +91,6 @@ def add_points_to_dxf(doc, points, layer_name, text_height, mode="2D"):
 
     msp = doc.modelspace()
     for idx, x, y, z in points:
-        # 创建文本（先不设位置，后续统一设置）
         text = msp.add_text(
             str(idx),
             height=text_height,
@@ -96,54 +99,79 @@ def add_points_to_dxf(doc, points, layer_name, text_height, mode="2D"):
                 'color': 1,
             }
         )
-        # 设置对齐方式为居中，并指定插入点
         if mode.upper() == "3D":
-            # 三维模式：插入点带 Z
             text.set_placement(Vec3(x, y, z), align=TextEntityAlignment.CENTER)
         else:
-            # 二维模式：Z 置 0
             text.set_placement(Vec3(x, y, 0), align=TextEntityAlignment.CENTER)
 
+# ============ 新增：处理单个文件的完整流程 ============
+def process_one_file(input_path, output_path):
+    """解析输入文件并生成对应的 DXF 文件"""
+    try:
+        points = parse_point_file(input_path)
+    except Exception as e:
+        print(f"读取或解析文件失败（{input_path}）：{e}")
+        return False
 
-def main():
-    print("===== 点云转 DXF（文本标签）=====")
-    print(f"当前文本模式：{TEXT_MODE}")
-    # 获取输入路径
-    input_path = get_input_path()
-    # 获取输出路径（自动根据输入文件名生成默认）
-    output_path = get_output_path(input_path)
+    if not points:
+        print(f"文件为空或未解析到有效点（{input_path}）。")
+        return False
+
+    print(f"文件 {os.path.basename(input_path)} 共读取到 {len(points)} 个点。")
+
+    doc = ezdxf.new(dxfversion=DXF_VERSION)
+    add_points_to_dxf(doc, points, LAYER_NAME, TEXT_HEIGHT, TEXT_MODE)
 
     # 确保输出目录存在
     out_dir = os.path.dirname(output_path)
     if out_dir and not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    # 解析点云文件
-    try:
-        points = parse_point_file(input_path)
-    except Exception as e:
-        print(f"读取或解析文件失败：{e}")
-        return
-
-    if not points:
-        print("文件为空或未解析到有效点。")
-        return
-
-    print(f"共读取到 {len(points)} 个点。")
-
-    # 创建 DXF 文档（使用更兼容的版本 R2000）
-    doc = ezdxf.new(dxfversion=DXF_VERSION)
-
-    # 添加点文本
-    add_points_to_dxf(doc, points, LAYER_NAME, TEXT_HEIGHT, TEXT_MODE)
-
-    # 保存
     try:
         doc.saveas(output_path)
         print(f"DXF 文件已保存至：{output_path}")
+        return True
     except Exception as e:
-        print(f"保存 DXF 失败：{e}")
+        print(f"保存 DXF 失败（{output_path}）：{e}")
+        return False
 
+def main():
+    print("===== 点云转 DXF（文本标签）=====")
+    print(f"当前文本模式：{TEXT_MODE}")
+
+    # 获取输入路径（可能是文件或目录）
+    input_path = get_input_path()
+
+    # ===== 新增：判断是否为目录（多文件模式） =====
+    if os.path.isdir(input_path):
+        print(f"检测到目录：{input_path}")
+        # 收集该目录下所有扩展名为 DEFAULT_EXTENSION 的文件
+        files = [f for f in os.listdir(input_path) if f.endswith(DEFAULT_EXTENSION)]
+        if not files:
+            print(f"目录下没有找到 {DEFAULT_EXTENSION} 文件。")
+            return
+        print(f"找到 {len(files)} 个点云文件：")
+        for f in files:
+            print(f"  - {f}")
+
+        # 获取输出目录
+        output_dir = get_output_dir()
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # 逐个处理
+        success_count = 0
+        for filename in files:
+            full_input = os.path.join(input_path, filename)
+            base_name = os.path.splitext(filename)[0]
+            output_path = os.path.join(output_dir, base_name + ".dxf")
+            if process_one_file(full_input, output_path):
+                success_count += 1
+        print(f"\n处理完成，成功 {success_count} 个，失败 {len(files) - success_count} 个。")
+    else:
+        # ===== 原有单文件模式 =====
+        output_path = get_output_path(input_path)
+        process_one_file(input_path, output_path)
 
 if __name__ == "__main__":
     main()
