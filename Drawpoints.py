@@ -4,8 +4,8 @@ import ezdxf
 from ezdxf.enums import TextEntityAlignment
 
 # ==================== 默认配置（可修改） ====================
-DEFAULT_INPUT_DIR = r"D:\DeXin\170\111\jisuan\新建文件夹"  # 默认输入目录
-DEFAULT_OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\新建文件夹"  # 默认输出目录
+DEFAULT_INPUT_DIR = r"D:\DeXin\170\111\jisuan\洪水边界"  # 默认输入目录
+DEFAULT_OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\洪水边界"  # 默认输出目录
 DEFAULT_INPUT_FILE = ""  # 默认输入文件名（仅当交互无输入时使用）
 TEXT_HEIGHT = 2.0  # 文字高度
 LAYER_NAME = "points"  # 点图层名称

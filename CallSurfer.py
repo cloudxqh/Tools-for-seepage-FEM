@@ -4,11 +4,11 @@ import time
 import win32com.client
 
 # ================== 默认配置（可在此修改） ==================
-INPUT_DIR = r"D:\DeXin\170\111\jisuan\6反演"
-OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\6反演"
+INPUT_DIR = r"D:\DeXin\170\111\jisuan\洪水工况"
+OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\洪水工况"
 SurferPath = r"D:\Golden Software\Surfer 15\Surfer.exe"
 START_INDEX = 1
-END_INDEX = 14
+END_INDEX = 6
 TARGET_SPACING = 1.0
 # ==========================================================
 
@@ -38,7 +38,7 @@ def grid_data(dat_path, grd_path, app, spacing=TARGET_SPACING):
         xmin, xmax, ymin, ymax = get_data_range(dat_path)
         num_cols = max(2, int(round((xmax - xmin) / spacing)) + 1)
         num_rows = max(2, int(round((ymax - ymin) / spacing)) + 1)
-        alg = app.srfLinearTriangle if hasattr(app, 'srfLinearTriangle') else 5
+        alg = app.srfLinearTriangle if hasattr(app, 'srfLinearTriangle') else 2 #2-克里金，9-三角网格
 
         app.GridData(
             dat_path,
