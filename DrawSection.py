@@ -18,8 +18,8 @@ from shapely.ops import unary_union
 
 
 # ========== 默认配置（可在开头修改） ==========
-DEFAULT_INPUT_DIR = r"D:\DeXin\170\111\jisuan\2-替换材料\jiancha"   # 默认输入目录
-DEFAULT_OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\2-替换材料\jiancha"                       # 默认输出目录（相对路径）
+DEFAULT_INPUT_DIR = r"D:\DeXin\170\111\jisuan\2-替换材料"   # 默认输入目录
+DEFAULT_OUTPUT_DIR = r"D:\DeXin\170\111\jisuan\2-替换材料"                       # 默认输出目录（相对路径）
 DEFAULT_PATTERN = "NET2P*.DAT"                        # 默认文件匹配模式
 DEFAULT_MERGE = False                                 # 默认是否合并
 
